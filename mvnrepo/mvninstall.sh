@@ -26,15 +26,9 @@ installFile() {
     echo "installing ${group}:${artifact}:${version} ...";
     if [ -f "${dir}/${artifact}.jar" ]; then
         opts="${opts} -Dfile=${dir}/${artifact}.jar";
-        if [ -f "${dir}/${artifact}.pom" ]; then
-            opts="${opts} -DpomFile=${dir}/${artifact}.pom";
-        fi
     else
         if [ -f "${dir}/${artifact}-${version}.jar" ]; then
             opts="${opts} -Dfile=${dir}/${artifact}-${version}.jar";
-            if [ -f "${dir}/${artifact}-${version}.pom" ]; then
-                opts="${opts} -DpomFile=${dir}/${artifact}-${version}.pom";
-            fi
         else
             echo "WARN: No files ${dir}/${artifact}-${version}.jar or ${dir}/${artifact}.jar found. Skipped.";
             return 1;
@@ -42,8 +36,9 @@ installFile() {
     fi
 
     artifact=$(echo -n "${artifact}" | tr '[:upper:]' '[:lower:]');
-    mvn -q install:install-file  -DgroupId="${group}" -DartifactId="${artifact}" -Dversion="${version}" \
-                          ${opts} -Dpackaging=jar -DcreateChecksum=true -DlocalRepositoryPath="${BASE_DIR}";
+    mvn install:3.1.1:install-file -DgroupId="${group}" -DartifactId="${artifact}" -Dversion="${version}" \
+                          ${opts} -Dpackaging=jar -DgeneratePom=true -DcreateChecksum=true -DlocalRepositoryPath="${BASE_DIR}";
+
 }
 
 if ! [ -f "nexus-oss.tar.gz" ]; then
