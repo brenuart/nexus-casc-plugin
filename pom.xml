@@ -5,13 +5,13 @@
     <parent>
         <groupId>org.sonatype.nexus.plugins</groupId>
         <artifactId>nexus-plugins</artifactId>
-        <version>3.45.0-01</version>
+        <version>3.62.0-01</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.github.asharapov.nexus</groupId>
     <artifactId>nexus-casc-plugin</artifactId>
-    <version>3.45.0.1</version>
+    <version>3.62.0.1</version>
     <packaging>bundle</packaging>
 
     <name>nexus-casc-plugin</name>
@@ -55,8 +55,8 @@
     </issueManagement>
 
     <properties>
-        <nexus.docker.version>3.45.0</nexus.docker.version>
-        <nexus.pkg.version>3.45.0-01</nexus.pkg.version>
+        <nexus.docker.version>3.62.0</nexus.docker.version>
+        <nexus.pkg.version>3.62.0-01</nexus.pkg.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.build.timestamp.format>yyyy-MM-dd HH:mm:ss</maven.build.timestamp.format>
         <maven-surefire-plugin.version>3.0.0-M8</maven-surefire-plugin.version>
@@ -67,6 +67,9 @@
         <retrofit.version>2.9.0</retrofit.version>
         <allure.version>2.20.1</allure.version>
         <aspectj.version>1.9.19</aspectj.version>
+
+        <!-- Disable bestpractices: they complain about repositories defined in the POM -->
+        <buildsupport-bestpractices.skip>true</buildsupport-bestpractices.skip>
     </properties>
 
     <dependencyManagement>
