@@ -289,20 +289,27 @@ public class RepositoryConfigHandler {
                 throw new RuntimeException("Cleanup policy name must be specified");
             }
             if (model.format == null) {
-                throw new RuntimeException("Cleanup policy format must be specified");
+                throw new RuntimeException("Cleanup policy format must be specified, valid values: "+validPolicyFormat());
             }
-            if (!cleanupPolicyConfigurations.containsKey(model.format)) {
-                throw new RuntimeException("Unsupported format of the cleanup policy: " + model.format);
+            if (! validPolicyFormat().contains(model.format)) {
+                throw new RuntimeException("Unsupported format of the cleanup policy: " + model.format + ", valid values: "+validPolicyFormat());
             }
             if (model.criteria != null) {
-                final CleanupPolicyConfiguration cfg = cleanupPolicyConfigurations.get(model.format);
+                final CleanupPolicyConfiguration cfg;
+                if (CleanupPolicy.ALL_CLEANUP_POLICY_FORMAT.equals(model.format)) {
+                    cfg = cleanupPolicyConfigurations.get("default");
+                }
+                else {
+                    cfg = cleanupPolicyConfigurations.get(model.format);
+                }
+
                 for (String attr : model.criteria.keySet()) {
                     Boolean ok = cfg.getConfiguration().get(attr);
                     if (ok == null && defaultCleanupPolicyConfiguration != null) {
                         ok = defaultCleanupPolicyConfiguration.getConfiguration().get(attr);
                     }
                     if (ok == null || !ok) {
-                        throw new RuntimeException("Unsupported criterion '" + attr + "' in the cleanup policy '" + model.name + "'");
+                        throw new RuntimeException("Unsupported criterion '" + attr + "' in the cleanup policy '" + model.name + "', valid attributes: "+validCriteriaAttributes(cfg));
                     }
                 }
             }
@@ -315,6 +322,10 @@ public class RepositoryConfigHandler {
                 }
                 if (model.notes != null && !model.notes.equals(policy.getNotes())) {
                     policy.setNotes(model.notes);
+                    changed = true;
+                }
+                if (model.format != null && !model.format.equals(policy.getFormat())) {
+                    policy.setFormat(model.format);
                     changed = true;
                 }
                 if (model.criteria != null && (policy.getCriteria() == null || !Objects.equals(model.criteria, policy.getCriteria()))) {
@@ -340,6 +351,34 @@ public class RepositoryConfigHandler {
         }
     }
 
+    /**
+     * Get a sorted list of the valid CleanupPolicy format values
+     * 
+     * @return a list sorted alphabetically
+     */
+    private Collection<String> validPolicyFormat() {
+        List<String> availableFormats = new ArrayList<>();
+        availableFormats.addAll(cleanupPolicyConfigurations.keySet());
+        availableFormats.add(CleanupPolicy.ALL_CLEANUP_POLICY_FORMAT);
+        availableFormats.sort(String.CASE_INSENSITIVE_ORDER);
+        return availableFormats;
+    }
+    
+    
+    /**
+     * Get a sorted list of the criteria attributes valid for the given {@link CleanupPolicyConfiguration}.
+     * 
+     * @param config the CleanupPolicyConfiguration
+     * @return a list of valid attributes sorted alphabetically
+     */
+    private Collection<String> validCriteriaAttributes(CleanupPolicyConfiguration config) {
+        return config.getConfiguration().entrySet().stream()
+            .filter(entry -> Boolean.TRUE.equals(entry.getValue()))
+            .map(entry -> entry.getKey())
+            .sorted()
+            .collect(Collectors.toList());
+    }
+    
     private void deleteCleanupPolicies(final List<String> cleanupPoliciesToDelete) {
         if (cleanupPoliciesToDelete == null || cleanupPoliciesToDelete.isEmpty()) {
             return;
