@@ -2,6 +2,8 @@ package io.github.asharapov.nexus.casc.internal.handlers;
 
 import io.github.asharapov.nexus.casc.internal.Utils;
 import io.github.asharapov.nexus.casc.internal.model.RepositoryConfig;
+
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.sonatype.nexus.blobstore.api.BlobStore;
@@ -9,6 +11,7 @@ import org.sonatype.nexus.blobstore.api.BlobStoreConfiguration;
 import org.sonatype.nexus.blobstore.api.BlobStoreManager;
 import org.sonatype.nexus.blobstore.file.FileBlobStore;
 import org.sonatype.nexus.cleanup.config.CleanupPolicyConfiguration;
+import org.sonatype.nexus.cleanup.config.CleanupPolicyConstants;
 import org.sonatype.nexus.cleanup.storage.CleanupPolicy;
 import org.sonatype.nexus.cleanup.storage.CleanupPolicyStorage;
 import org.sonatype.nexus.common.entity.EntityId;
@@ -37,6 +40,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -289,29 +293,51 @@ public class RepositoryConfigHandler {
                 throw new RuntimeException("Cleanup policy name must be specified");
             }
             if (model.format == null) {
-                throw new RuntimeException("Cleanup policy format must be specified, valid values: "+validPolicyFormat());
+                throw new RuntimeException("Cleanup policy format must be specified, valid values: "+validCleanupPolicyFormat());
             }
-            if (! validPolicyFormat().contains(model.format)) {
-                throw new RuntimeException("Unsupported format of the cleanup policy: " + model.format + ", valid values: "+validPolicyFormat());
+            if (! validCleanupPolicyFormat().contains(model.format)) {
+                throw new RuntimeException("Unsupported format of the cleanup policy: " + model.format + ", valid values: "+validCleanupPolicyFormat());
             }
             if (model.criteria != null) {
                 final CleanupPolicyConfiguration cfg;
                 if (CleanupPolicy.ALL_CLEANUP_POLICY_FORMAT.equals(model.format)) {
-                    cfg = cleanupPolicyConfigurations.get("default");
+                    cfg = defaultCleanupPolicyConfiguration;
                 }
                 else {
                     cfg = cleanupPolicyConfigurations.get(model.format);
                 }
 
-                for (String attr : model.criteria.keySet()) {
-                    Boolean ok = cfg.getConfiguration().get(attr);
-                    if (ok == null && defaultCleanupPolicyConfiguration != null) {
-                        ok = defaultCleanupPolicyConfiguration.getConfiguration().get(attr);
+                model.criteria.entrySet().forEach(entry -> {
+                    String attributeName = entry.getKey();
+                    String attributeValue = entry.getValue();
+                    
+                    // Is it a valid attribute?
+                    //
+                    if (!cfg.getConfiguration().getOrDefault(attributeName, Boolean.FALSE)) {
+                        throw new RuntimeException("Unsupported criterion '" + attributeName + "' in the cleanup policy '" + model.name + "', valid attributes: "+validCleanupPolicyCriteriaAttributes(cfg));
                     }
-                    if (ok == null || !ok) {
-                        throw new RuntimeException("Unsupported criterion '" + attr + "' in the cleanup policy '" + model.name + "', valid attributes: "+validCriteriaAttributes(cfg));
+                    
+                    // Validate attribute value known types
+                    //
+                    switch(attributeName) {
+                        case CleanupPolicyConstants.LAST_BLOB_UPDATED_KEY:
+                        case CleanupPolicyConstants.LAST_DOWNLOADED_KEY:
+                              if (!StringUtils.isNumeric(attributeValue)) {
+                                  throw new RuntimeException("Invalid value for criterion '" + attributeName + "' in the cleanup policy '" + model.name + "': expected a Number, was: '"+attributeValue+"'");
+                              }
+                              break;
+                        case CleanupPolicyConstants.IS_PRERELEASE_KEY:
+                            if (! (attributeValue==null || "true".equals(attributeValue) || "false".equals(attributeValue))) {
+                                throw new RuntimeException("Invalid value for criterion '" + attributeName + "' in the cleanup policy '" + model.name + "': expected a Boolean, was: '"+attributeValue+"'");
+                            }
+                            break;
+                        case CleanupPolicyConstants.REGEX_KEY:
+                            if (!isValidRegex(attributeValue)) {
+                                throw new RuntimeException("Invalid value for criterion '" + attributeName + "' in the cleanup policy '" + model.name + "': expected a Regex, was: '"+attributeValue+"'");
+                            }
+                            break;
                     }
-                }
+                });
             }
             CleanupPolicy policy = cleanupPolicyStorage.get(model.name);
             if (policy != null) {
@@ -356,7 +382,7 @@ public class RepositoryConfigHandler {
      * 
      * @return a list sorted alphabetically
      */
-    private Collection<String> validPolicyFormat() {
+    private Collection<String> validCleanupPolicyFormat() {
         List<String> availableFormats = new ArrayList<>();
         availableFormats.addAll(cleanupPolicyConfigurations.keySet());
         availableFormats.add(CleanupPolicy.ALL_CLEANUP_POLICY_FORMAT);
@@ -371,12 +397,22 @@ public class RepositoryConfigHandler {
      * @param config the CleanupPolicyConfiguration
      * @return a list of valid attributes sorted alphabetically
      */
-    private Collection<String> validCriteriaAttributes(CleanupPolicyConfiguration config) {
+    private Collection<String> validCleanupPolicyCriteriaAttributes(CleanupPolicyConfiguration config) {
         return config.getConfiguration().entrySet().stream()
             .filter(entry -> Boolean.TRUE.equals(entry.getValue()))
             .map(entry -> entry.getKey())
             .sorted()
             .collect(Collectors.toList());
+    }
+    
+    private boolean isValidRegex(String regex) {
+        try {
+            Pattern.compile(regex);
+            return true;
+        }
+        catch(Exception e) {
+            return false;
+        }
     }
     
     private void deleteCleanupPolicies(final List<String> cleanupPoliciesToDelete) {
